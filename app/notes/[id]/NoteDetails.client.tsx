@@ -9,17 +9,18 @@ export default function NoteDetailsClient() {
   const params = useParams();
   const id = params?.id as string;
 
-  const { data: note, isLoading, isError } = useQuery({
+  const { data: note, isLoading, error } = useQuery({
     queryKey: ['note', id],
     queryFn: () => fetchNoteById(id),
     enabled: Boolean(id),
+    refetchOnMount: false, 
   });
 
   if (isLoading) {
     return <p>Loading, please wait...</p>;
   }
 
-  if (isError || !note) {
+  if (error || !note) {
     return <p>Something went wrong.</p>;
   }
 
@@ -32,7 +33,7 @@ export default function NoteDetailsClient() {
         <p className={css.tag}>{note.tag}</p>
         <p className={css.content}>{note.content}</p>
         <p className={css.date}>
-          {note.createdAt ? new Date(note.createdAt).toLocaleDateString() : ''}
+          {new Date(note.createdAt).toLocaleDateString()}
         </p>
       </div>
     </div>

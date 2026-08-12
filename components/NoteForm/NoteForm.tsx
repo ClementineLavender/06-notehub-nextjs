@@ -1,113 +1,106 @@
 'use client';
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Formik, Form, Field, ErrorMessage } from "formik";
-import * as Yup from "yup";
-import { createNote } from "@/lib/api";
-import type { NewNoteData } from "@/types/note";
-import css from "./NoteForm.module.css";
+import { useState, FormEvent } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createNote } from '@/lib/api';
+import { NewNoteData, NoteTag } from '@/types/note';
+import css from './NoteForm.module.css';
+
+// Масив допустимих тегів для випадаючого списку (select)
+const TAGS: NoteTag[] = ['Work', 'Personal', 'Meeting', 'Shopping', 'Todo'];
 
 interface NoteFormProps {
   onCancel: () => void;
 }
 
-const validationSchema = Yup.object().shape({
-  title: Yup.string()
-    .min(3, "Title must be at least 3 characters")
-    .max(50, "Title must be at most 50 characters")
-    .required("Title is required"),
-
-  content: Yup.string().max(500, "Content must be at most 500 characters"),
-
-  tag: Yup.string()
-    .oneOf(["Todo", "Work", "Personal", "Meeting", "Shopping"])
-    .required("Tag is required"),
-});
-
-const initialValues: NewNoteData = {
-  title: "",
-  content: "",
-  tag: "Todo",
-};
-
-export const NoteForm = ({ onCancel }: NoteFormProps) => {
+export default function NoteForm({ onCancel }: NoteFormProps) {
   const queryClient = useQueryClient();
 
-  const { mutateAsync: addNote, isPending } = useMutation({
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  // Встановлюємо дефолтне значення з першого елемента масиву TAGS
+  const [tag, setTag] = useState<NoteTag>(TAGS[0]);
+
+  const mutation = useMutation({
     mutationFn: (newNote: NewNoteData) => createNote(newNote),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notes"] });
-      onCancel();
+      // Оновлюємо кеш запиту нотаток, щоб нова нотатка одразу з'явилася в списку
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      onCancel(); // Закриваємо модалку
     },
   });
 
-  const handleSubmit = async (values: NewNoteData) => {
-    try {
-      await addNote(values);
-    } catch (error) {
-      console.error("Failed to save note:", error);
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!title.trim() || !content.trim()) {
+      return;
     }
+
+    mutation.mutate({
+      title,
+      content,
+      tag,
+    });
   };
 
   return (
-    <Formik
-      initialValues={initialValues}
-      validationSchema={validationSchema}
-      onSubmit={handleSubmit}
-    >
-      <Form className={css.form}>
-        <div className={css.formGroup}>
-          <label htmlFor="title">Title</label>
-          <Field
-            id="title"
-            name="title"
-            minLength={3}
-            maxLength={50}
-            type="text"
-            className={css.input}
-          />
-          <ErrorMessage name="title" component="span" className={css.error} />
-        </div>
+    <form className={css.form} onSubmit={handleSubmit}>
+      <div className={css.field}>
+        <label htmlFor="title">Title</label>
+        <input
+          id="title"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+        />
+      </div>
 
-        <div className={css.formGroup}>
-          <label htmlFor="content">Content</label>
-          <Field
-            id="content"
-            name="content"
-            as="textarea"
-            rows={8}
-            className={css.textarea}
-          />
-          <ErrorMessage name="content" component="span" className={css.error} />
-        </div>
+      <div className={css.field}>
+        <label htmlFor="tag">Tag</label>
+        <select
+          id="tag"
+          value={tag}
+          // Явно кастуємо значення e.target.value до типу NoteTag
+          onChange={(e) => setTag(e.target.value as NoteTag)}
+        >
+          {TAGS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        <div className={css.formGroup}>
-          <label htmlFor="tag">Tag</label>
-          <Field id="tag" name="tag" as="select" className={css.select}>
-            <option value="Todo">Todo</option>
-            <option value="Work">Work</option>
-            <option value="Personal">Personal</option>
-            <option value="Meeting">Meeting</option>
-            <option value="Shopping">Shopping</option>
-          </Field>
-          <ErrorMessage name="tag" component="span" className={css.error} />
-        </div>
+      <div className={css.field}>
+        <label htmlFor="content">Content</label>
+        <textarea
+          id="content"
+          rows={4}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          required
+        />
+      </div>
 
-        <div className={css.actions}>
-          <button type="button" className={css.cancelButton} onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className={css.submitButton}
-            disabled={isPending}
-          >
-            Create note
-          </button>
-        </div>
-      </Form>
-    </Formik>
+      <div className={css.actions}>
+        <button
+          type="button"
+          className={css.cancelBtn}
+          onClick={onCancel}
+          disabled={mutation.isPending}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className={css.submitBtn}
+          disabled={mutation.isPending}
+        >
+          {mutation.isPending ? 'Saving...' : 'Create Note'}
+        </button>
+      </div>
+    </form>
   );
-};
-
-export default NoteForm;
+}
